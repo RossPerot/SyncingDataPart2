@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        "use strict";
+    
+        var canvas;
+        var ctx;
+        //our websocket connection
+        var socket; 
+		var draws = {};
+		var time;
+        
+        //an automated function to generate messages to send to the server
+        //Normally something like this would be invoked by user input
+        //such as clicking with the mouse, clicking a button, using WASD, etc
+        function updatePosition() {
+            //our request message to update the square's position by 10 and 5 pixels
+            //The variables in this message "xUpdate" and "yUpdate" 
+            //We know this because we know the server is accepting an xUpdate and yUpdate in
+            //its "movementUpdate" message listener. The names have to match on client and server
+            //for this to work correctly.
+            var message = {
+                xUpdate: 10,
+                yUpdate: 5
+            }
+            
+            //emit a movementUpdate message to the server and send our request data
+            socket.emit('movementUpdate', message);
+        }
+        
+        //redraw our square to the screen
+        function draw()
+		{
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			var keys = Object.keys(draws);
+
+			for(var i = 0; i < keys.length; i++)
+			{
+				var drawCall = draws[ keys[i] ];
+				ctx.fillRect(drawCall.x, drawCall.y, drawCall.width, drawCall.height);
+			}
+		}
+		
+		function setCalls()
+		{
+			time = new Date().getTime();
+
+			draws[time] = {x: 100, y: 100, width: 100, height: 100};
+
+			time = new Date().getTime();
+			
+			var coords = {x: (Math.floor((Math.random()*400)) + 1), y:(Math.floor((Math.random()*400)) + 1), width:100, height:100};
+			socket.emit('draw', {time: time, coords: coords});
+		}
+		
+		function handleMessage(data)
+		{
+			draws = data;
+			draw();
+		}
+
+        function init() {
+            canvas = document.querySelector("#canvas");
+            ctx = canvas.getContext("2d");
+        
+            //Connect to our server (io added automatically by socket.io when embedding it in the HTTP app on the server side)
+            //This will return a new websocket connection. Every call to io.connect will return a new websocket connection 
+            //BUT not necessarily close the existing one. 
+            //You can absolutely use multiple websockets on the client, but you have to manage which ones are listening to which
+            //messages. In cases like this, you only need one. 
+            socket = io.connect();
+            
+            //When the socket connects successfully
+            socket.on('connect', function () {
+				setCalls();
+            });      
+            
+            //When our socket receives 'updatedMovement' messages from the server, call our update function
+            socket.on('drawObjects', handleMessage);
+        }
+		function deleteDraw()
+		{
+			socket.emit('delete', time);
+		}
+      window.onload = init;
+	  window.onunload = deleteDraw;
+    </script>
+</head>
+<body>
+    <canvas id="canvas" height="500" width="500">Please use an HTML 5 browser</canvas>
+</body>
+</html>
